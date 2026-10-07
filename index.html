@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>减脂记录小站</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+        body {
+            background-color: #f7f9fc;
+            color: #2d3748;
+            padding: 16px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+        h1 {
+            text-align: center;
+            font-size: 24px;
+            margin:12px 0 24px;
+            color:#3182ce;
+        }
+        h2 {
+            font-size:18px;
+            margin-bottom:14px;
+            color:#2b6cb0;
+        }
+        .input-row {
+            display:flex;
+            gap:10px;
+            flex-wrap:wrap;
+            margin-bottom:12px;
+        }
+        input {
+            flex:1;
+            min-width:120px;
+            padding:10px 12px;
+            border:1px solid #cbd5e0;
+            border-radius:10px;
+            font-size:16px;
+        }
+        button {
+            padding:10px 16px;
+            border:none;
+            border-radius:10px;
+            background-color:#3182ce;
+            color:white;
+            font-size:16px;
+            cursor:pointer;
+            transition:0.2s;
+        }
+        button:hover {
+            background-color:#2b6cb0;
+        }
+        .result-text {
+            margin-top:10px;
+            font-size:16px;
+            line-height:1.6;
+        }
+        canvas {
+            width:100%;
+            height:260px;
+        }
+        .record-item{
+            padding:8px 0;
+            border-bottom:1px solid #edf2f7;
+        }
+    </style>
+</head>
+<body>
+    <h1>减脂记录小站</h1>
+
+    <div class="card">
+        <h2>📊 BMI & 基础代谢计算</h2>
+        <div class="input-row">
+            <input id="height" placeholder="身高 cm" type="number">
+            <input id="weight" placeholder="当前体重 kg" type="number">
+        </div>
+        <div class="input-row">
+            <input id="age" placeholder="年龄" type="number">
+            <select id="gender">
+                <option value="male">男</option>
+                <option value="female">女</option>
+            </select>
+        </div>
+        <div class="input-row">
+            <select id="activity">
+                <option value="1.2">久坐几乎不运动</option>
+                <option value="1.375">轻度运动（每周1-3次）</option>
+                <option value="1.55">中度运动（每周3-5次）</option>
+                <option value="1.725">高强度（每周6-7次）</option>
+            </select>
+            <button onclick="calcBmr()">计算</button>
+        </div>
+        <div class="result-text" id="bmrResult"></div>
+    </div>
+
+    <div class="card">
+        <h2>⚖️ 记录今日体重</h2>
+        <div class="input-row">
+            <input id="newWeight" placeholder="体重 kg" type="number" step="0.01">
+            <button onclick="saveWeight()">保存记录</button>
+        </div>
+        <canvas id="weightChart"></canvas>
+        <div id="weightList"></div>
+    </div>
+
+    <div class="card">
+        <h2>🍽️ 每日热量记录</h2>
+        <div class="input-row">
+            <input id="foodName" placeholder="食物名称">
+            <input id="foodCal" placeholder="热量 kcal" type="number">
+            <button onclick="addFood()">添加</button>
+        </div>
+        <div class="result-text" id="foodList"></div>
+        <div class="result-text" id="calTotal"></div>
+        <button onclick="clearFood()" style="background:#e53e3e;margin-top:10px;">清空今日食物</button>
+    </div>
+
+<script>
+// 本地存储
+let weightData = JSON.parse(localStorage.getItem('weightLog')) || [];
+let foodData = JSON.parse(localStorage.getItem('foodLog')) || [];
+
+// BMR计算 Mifflin-St Jeor公式
+function calcBmr(){
+    const h = Number(document.getElementById('height').value);
+    const w = Number(document.getElementById('weight').value);
+    const a = Number(document.getElementById('age').value);
+    const g = document.getElementById('gender').value;
+    const act = Number(document.getElementById('activity').value);
+    if(!h||!w||!a){
+        document.getElementById('bmrResult').innerText="请填写完整数据";
+        return;
+    }
+    let bmr;
+    if(g==='male') bmr = 10*w + 6.25*h -5*a +5;
+    else bmr = 10*w + 6.25*h -5*a -161;
+    const tdee = bmr * act;
+    const bmi = w/(h/100)/(h/100);
+    let bmiTip = "";
+    if(bmi<18.5) bmiTip="偏瘦";
+    else if(bmi<24) bmiTip="正常";
+    else if(bmi<28) bmiTip="超重";
+    else bmiTip="肥胖";
+    document.getElementById('bmrResult').innerHTML=`
+    BMI：${bmi.toFixed(2)}，${bmiTip}<br>
+    基础代谢BMR：${bmr.toFixed(0)} kcal/天<br>
+    每日总消耗TDEE：${tdee.toFixed(0)} kcal<br>
+    减脂建议摄入：${(tdee-300).toFixed(0)} ~ ${(tdee-500).toFixed(0)} kcal
+    `;
+}
+
+//体重记录
+function saveWeight(){
+    const w = Number(document.getElementById('newWeight').value);
+    if(!w) return;
+    const record = {date:new Date().toLocaleDateString(), weight:w};
+    weightData.push(record);
+    localStorage.setItem('weightLog', JSON.stringify(weightData));
+    renderWeightChart();
+    renderWeightList();
+}
+function renderWeightChart(){
+    const ctx = document.getElementById('weightChart').getContext('2d');
+    const labels = weightData.map(i=>i.date);
+    const data = weightData.map(i=>i.weight);
+    if(window.wChart) window.wChart.destroy();
+    window.wChart = new Chart(ctx,{
+        type:'line',
+        data:{labels:labels,datasets:[{label:'体重kg',data:data,borderColor:'#3182ce',fill:false,tension:0.2}]},
+        options:{responsive:true}
+    })
+}
+function renderWeightList(){
+    const wrap = document.getElementById('weightList');
+    wrap.innerHTML = weightData.map(item=>`<div class="record-item">${item.date}：${item.weight} kg</div>`).join('');
+}
+
+//食物热量
+function addFood(){
+    const name = document.getElementById('foodName').value;
+    const cal = Number(document.getElementById('foodCal').value);
+    if(!name||!cal) return;
+    foodData.push({name,cal});
+    localStorage.setItem('foodLog',JSON.stringify(foodData));
+    renderFood();
+}
+function renderFood(){
+    const wrap = document.getElementById('foodList');
+    const total = foodData.reduce((sum,item)=>sum+item.cal,0);
+    wrap.innerHTML = foodData.map(i=>`<div class="record-item">${i.name}：${i.cal} kcal</div>`).join('');
+    document.getElementById('calTotal').innerText=`今日总摄入：${total} kcal`;
+}
+function clearFood(){
+    foodData = [];
+    localStorage.removeItem('foodLog');
+    renderFood();
+}
+
+//初始化页面
+renderWeightChart();
+renderWeightList();
+renderFood();
+</script>
+</body>
+</html>
